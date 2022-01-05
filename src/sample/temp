@@ -1,0 +1,585 @@
+package sample;
+import javafx.application.Application;
+import javafx.scene.Scene;
+import javafx.scene.canvas.Canvas;
+import javafx.scene.canvas.GraphicsContext;
+import javafx.scene.control.TextInputDialog;
+import javafx.scene.layout.StackPane;
+import javafx.stage.Stage;
+import java.io.IOException;
+import java.nio.file.Paths;
+import java.util.Map;
+import java.util.NoSuchElementException;
+import java.util.Optional;
+import java.util.Scanner;
+
+public class Main extends Application {
+    // Sets boundaries of stage
+    final int WIDTH = 1200;
+    final int HEIGHT = 800;
+
+    @Override
+    public void start(Stage primaryStage) {
+        try {
+            // Sets up primary stage, canvas, and graphics context
+            primaryStage.setTitle("Steven Granaturov Assignment 3");
+            Canvas canvas = new Canvas(WIDTH, HEIGHT);
+            // put all graphics into the canvas
+            GraphicsContext graphics = canvas.getGraphicsContext2D();
+            graphics.setLineWidth(1);
+            // Center of canvas
+            MyPoint center = new MyPoint(WIDTH /2.0, HEIGHT /2.0);
+            // GUI component
+            // https://code.makery.ch/blog/javafx-dialogs-official/
+            TextInputDialog dialog = new TextInputDialog("");
+            dialog.setTitle("User Interface");
+            dialog.setHeaderText("Enter Number of Events");
+            dialog.setContentText("Enter an integer (1-26) ");
+
+            Optional<String> result = dialog.showAndWait();
+            int N = 3; // Default value set to 3
+            if(result.isPresent()){
+                N = Integer.parseInt(result.get());
+            }
+
+            String fileLocation = "C:\\Users\\steve\\Desktop\\Alice in Wonderland.txt";
+            Scanner input = new Scanner(Paths.get(fileLocation));
+            String content = "";
+            while (input.hasNext()) {
+                content += input.nextLine().replaceAll("[^a-zA-Z]", "").toLowerCase();
+            }
+            input.close(); // Close the file
+
+            HistogramAlphabet text = new HistogramAlphabet(content);
+            Map<String, Integer> sortedFrequency = text.sortDecreasing();
+            sortedFrequency.forEach((K, V) -> System.out.println(K + ": " + V));
+            HistogramAlphabet.MyPieChart pieChart = text.new MyPieChart(N, center, 250, 0.0);
+
+            // Creates Histogram with N elements
+            System.out.println(pieChart.getProbability());
+            System.out.println("\nSum of probabilities: " + pieChart.getSumOfProbability() + "\n");
+            Map<String, Slice> slices = pieChart.createPieChart();
+            slices.forEach((K, V) -> System.out.println(K + ": " + slices.get(K)));
+
+            double angleSum = 0.0;
+            for (String key : slices.keySet()) {
+                angleSum += slices.get(key).getAngle();
+            }
+            System.out.println("\nSum of angles: " + angleSum);
+            pieChart.draw(graphics);
+
+            // Set the stackPane and create the scene
+            StackPane root = new StackPane(canvas);
+            Scene scene = new Scene(root, WIDTH, HEIGHT);
+            primaryStage.setScene(scene);
+            primaryStage.show();
+
+            // Exceptions:
+            // https://www.geeksforgeeks.org/types-of-exception-in-java-with-examples/
+        } catch (IOException ioException) {
+            System.err.println("File not found!");
+        } catch (NoSuchElementException elementException) {
+            System.err.println("Invalid input! Please try again!");
+        } catch (IllegalStateException stateException) {
+            System.out.println("Theres an error with the file... Please try again! ");
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    public static void main(String[] args)
+    {
+        launch(args);
+    }
+}
+
+===============================================================================================================
+package sample;
+
+import javafx.scene.canvas.GraphicsContext;
+import javafx.scene.chart.PieChart;
+
+import java.sql.*;
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Properties;
+
+public class Database{
+    String username;
+    String password;
+    String url;
+    Connection connection;
+
+    public Database(String url, String username, String password){
+        this.url = url;
+        this.username = username;
+        this.password = password;
+        connection = null;
+        if(testDatabaseConnection() == true){
+            System.out.println("Database connection successful!");
+            String sqlStudent = "CREATE TABLE IF NOT EXISTS Students "
+                    + "(empID INT NOT NULL, "
+                    + "PRIMARY KEY (empID), "
+                    + "firstName varchar(50), "
+                    + "lastName varchar(50), "
+                    + "email varchar(100), "
+                    + "gender varchar(1)) ";
+
+            String sqlCourses = "CREATE TABLE IF NOT EXISTS Courses "
+                    + "(courseID VARCHAR(10), "
+                    + "PRIMARY KEY (courseID), "
+                    + "courseTitle varchar(100), "
+                    + "year INT NOT NULL,"
+                    + "department varchar(100))";
+
+            String sqlClasses = "CREATE TABLE IF NOT EXISTS Classes "
+                    + "(courseID INT NOT NULL, "
+                    + "studentID INT NOT NULL, "
+                    + "sectionNumber INT NOT NULL, "
+                    + "year INT NOT NULL, "
+                    + "semester varchar(50), "
+                    + "grade varchar(1), "
+                    + "FOREIGN KEY (courseID) REFERENCES Courses(courseID), "
+                    + "FOREIGN KEY (studentID) REFERENCES Students(empID), "
+                    + "PRIMARY KEY (courseID, studentID, sectionNumber))";
+
+            try {
+                deleteTable("Classes");
+                deleteTable("Students");
+                deleteTable("Courses");
+                PreparedStatement statement1 = connection.prepareStatement(sqlStudent);
+                PreparedStatement statement2 = connection.prepareStatement(sqlCourses);
+                PreparedStatement statement3 = connection.prepareStatement(sqlClasses);
+                statement1.execute();
+                statement2.execute();
+                statement3.execute();
+                System.out.println("Creating new tables...\n");
+                populateDatabase();
+            } catch (SQLException e) {
+                System.out.println(e.getMessage());
+                e.printStackTrace();
+            }
+        }
+    }
+
+    public boolean testDatabaseConnection(){
+        try {
+            connection = DriverManager.getConnection(this.url, this.username, this.password);
+            if (connection != null){
+                return true;
+            }
+        } catch (SQLException e) {
+            System.out.println(e.getMessage());
+            e.printStackTrace();
+        }
+        return false;
+    }
+
+    public void terminateConnection(){
+        try{
+            connection.close();
+        } catch (SQLException e){
+            System.out.println(e.getMessage());
+            e.printStackTrace();
+        }
+    }
+    // Given the string containing the SQL commands
+    public void createTable(String sqlString){
+        try {
+            PreparedStatement statement = connection.prepareStatement(sqlString);
+            System.out.println("Creating new table... \n");
+        } catch (SQLException e){
+            System.out.println(e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    public void insertToTable(String tableName, String columns, String values){
+        try {
+            PreparedStatement statement = connection.prepareStatement(String.format("INSERT %s (%s) VALUES (%s)"
+            , tableName, columns, values), ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_UPDATABLE);
+            int rows = statement.executeUpdate();
+            System.out.printf("Populated %s with new values. %d row(s) modified. \n", tableName, rows);
+        } catch (Exception e){
+            System.out.println(e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    public void updateRow(String tableName, String parameter, String value, String condition){
+        try {
+            PreparedStatement statement = connection.prepareStatement(String.format("UPDATE %s SET " +
+                    "%s=%s WHERE %s=%s", tableName, parameter, value, parameter, condition));
+            int rows = statement.executeUpdate();
+            System.out.printf("Updated %s with new values. %d row(s) " +
+                    "modified.\n", tableName, rows);
+        } catch (Exception e){
+            System.out.println(e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    public void deleteTable(String tableName){
+        try {
+            PreparedStatement statement = connection.prepareStatement("DROP TABLE " + tableName);
+            statement.execute();
+            System.out.println("Table " + tableName + " has been dropped. \n");
+        } catch (SQLException e){
+            System.out.println(e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    public void generatePieChart(GraphicsContext gc, int w, int h){
+        HashMap<Character, Integer> grades = new HashMap<Character, Integer>() {{
+            put('A', 0);
+            put('B', 0);
+            put('C', 0);
+            put('D', 0);
+            put('F', 0);
+            put('W', 0);
+        }};
+        Character C;
+        try {
+            PreparedStatement statement = connection.prepareStatement("SELECT grade FROM Classes WHERE Classes.courseID = 22100");
+            ResultSet resultset = statement.executeQuery();
+            while (resultset.next()) {
+                C = resultset.getString("grade").toUpperCase().charAt(0);
+                grades.put(C, grades.get(C) + 1); // Increment by 1
+            }
+            //PieChart gradeChart = new PieChart(w/2, h/2, h/3, 6, grades); // TODO
+            //gradeChart.draw(gc);
+        } catch (SQLException e){
+            System.out.println(e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    public void showColumns(String tableName){
+        try {
+            PreparedStatement statement = connection.prepareStatement(String.format("SHOW COLUMNS FROM %s", tableName));
+            ResultSet resultset = statement.executeQuery();
+            this.showResults(tableName, resultset);
+        } catch (Exception e){
+            System.out.println(e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    public void showData(String tableName){
+        try {
+            PreparedStatement statement = connection.prepareStatement("SELECT * FROM " + tableName);
+            ResultSet resultset = statement.executeQuery();
+            showResults(tableName, resultset);
+        } catch (Exception e){
+            System.out.println(e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    public void showResults(String tableName, ResultSet resultset){
+        try {
+            ResultSetMetaData data = resultset.getMetaData();
+            int numColumns = data.getColumnCount();
+            String resultString = null;
+            if (numColumns > 0) {
+                resultString = "\nTable: " + tableName + "\n"
+                        + "===========================\n";
+                for (int colNum = 1; colNum <= numColumns; colNum++) {
+                    resultString += String.format(data.getColumnLabel(colNum) + " ");
+                }
+            }
+            System.out.println(resultString);
+            System.out.println("===========================\n");
+
+            while(resultset.next()){
+                resultString = "";
+                for(int colNum = 1; colNum <= numColumns; colNum++){
+                    String column = resultset.getString(colNum) + " ";
+                    if (column != null)
+                        resultString += column;
+                }
+                System.out.println(resultString + "\n" + "--------------------------------");
+            }
+        } catch (Exception e){
+            System.out.println(e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    public void populateDatabase(){
+        try {
+            PreparedStatement insertStudents = connection.prepareStatement("INSERT INTO Students (empID, firstName, lastName, email, gender) VALUES"
+                    + "(111111110, 'William', 'Skeith', 'wes@gmail.com', 'M'),"
+                    + "(111111111, 'Nihal', 'Vatandas', 'nv@gmail.com', 'F'),"
+                    + "(111111112, 'Hesham', 'Auda', 'ha@gmail.com', 'M')"
+            );
+
+            PreparedStatement insertClasses = connection.prepareStatement("INSERT INTO Classes (courseID, studentID, sectionNumber, year, semester, grade) VALUES "
+                    + "(22100, 111111110, 3, 2021, 'Fall', 'A'),"
+                    + "(22100, 111111111, 3, 2021, 'Fall', 'B'),"
+                    + "(22100, 111111112, 3, 2021, 'Fall', 'F')"
+            );
+
+            insertStudents.execute();
+            insertClasses.execute();
+        } catch (Exception e){
+            System.out.println(e.getMessage());
+            e.printStackTrace();
+        }
+    }
+}
+
+==============================================================================================================
+package sample;
+
+import java.sql.*;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+
+public class Database {
+    private static Connection connection;
+
+    public static void connectToDatabase() throws SQLException{
+        connection = null;
+        try {
+            //Class.forName("com.mysql.cj.jdbc.Driver");
+            connection = DriverManager.getConnection("jdbc:postgresql://localhost:5432/CSC221 Database"
+                    , "postgres", "0837");
+            if (connection != null){
+                System.out.println("Connected to the database!\n");
+            }
+        } catch (Exception e){
+            System.out.println(e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    public static void createTables(){
+        try {
+            PreparedStatement statement1 = connection.prepareStatement("CREATE TABLE Students " +
+                    "(studentID INT NOT NULL, " +
+                    "firstName VARCHAR(100), " +
+                    "lastName VARCHAR(100)," +
+                    "email VARCHAR(100)," +
+                    "gender CHAR(1)," +
+                    "PRIMARY KEY (studentID)," +
+                    "CHECK (gender = 'F' OR gender = 'M'))"
+                    );
+            statement1.execute();
+
+            PreparedStatement statement2 = connection.prepareStatement("CREATE TABLE Courses " +
+                    "(courseID VARCHAR(10)," +
+                    "courseTitle VARCHAR(100)," +
+                    "department VARCHAR(50)," +
+                    "PRIMARY KEY (courseID))");
+            statement2.execute();
+
+            PreparedStatement statement3 = connection.prepareStatement("CREATE TABLE Classes " +
+                    "(courseID VARCHAR(10)," +
+                    "studentID INT NOT NULL," +
+                    "section VARCHAR(50)," +
+                    "year INT NOT NULL," +
+                    "semester VARCHAR(6), " +
+                    "grade CHAR(1), " +
+                    "PRIMARY KEY (courseID, studentID, section)," +
+                    "CHECK (grade = 'A' OR grade = 'B'OR grade = 'C'OR grade = 'D'OR grade = 'F'OR grade = 'W'))");
+            statement3.execute();
+
+            Database.showTables();
+        } catch (Exception e) {
+            System.out.println(e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    public static void insertIntoStudents(int studentID, String firstName, String lastName,
+                                          String email, char gender){
+        try {
+            PreparedStatement statement = connection.prepareStatement("INSERT INTO Students" +
+                    " (studentID, firstName, lastName, email, gender) VALUES(" +
+                    studentID + ", " + firstName + ", " + lastName + ", " + email +
+                    ", " + gender + ")", ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_UPDATABLE);
+            statement.execute();
+        } catch (Exception e) {
+            System.out.println(e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    public static void insertIntoCourses(String courseID, String courseTitle, String department){
+        try {
+            PreparedStatement statement = connection.prepareStatement("INSERT INTO Courses "
+            + "(courseID, courseTitle, department) VALUES("
+            + courseID + ", " + courseTitle + ", " + department + ")"
+                    , ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_UPDATABLE);
+            statement.execute();
+        } catch (Exception e) {
+            System.out.println(e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    public static void insertIntoClasses(String courseID, int studentID, String section, int year,
+                                         String semester, char grade){
+        try {
+            PreparedStatement statement = connection.prepareStatement("INSERT INTO Classes "
+            + "(courseID, studentID, section, year, semester, grade) VALUES("
+            + courseID + ", " + studentID + ", " + section + ", " + year + ", " + semester
+            + ", " + grade + ")", ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_UPDATABLE);
+            statement.execute();
+        } catch (Exception e) {
+            System.out.println(e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    public static void tableEnrolledIntoCSC22100() {
+        try {
+            PreparedStatement statement = connection.prepareStatement(
+                    "SELECT grade, COUNT(studentID) FROM Classes " +
+                            "WHERE courseID = 'CSC22100' AND year = 2021 AND semester = 'Spring'" +
+                            "GROUP by grade");
+            ResultSet rset = statement.executeQuery();
+            Database.showResults("Classes", rset);
+        } catch (Exception e) {
+            System.out.println(e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    public static HashMap<Character, Integer> studentsAndGrades() {
+        HashMap<Character, Integer> data = new HashMap<>(6);
+        try {
+            if (connection == null) { // TODO
+                try {
+                    connection = DriverManager.getConnection("jdbc:postgresql://localhost:5432/CSC221 Database"
+                            , "postgres", "0837");
+                    clearPreviousTables();
+                    createTables();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+            PreparedStatement statement = connection.prepareStatement("SELECT grade FROM Classes");
+            ResultSet rset = statement.executeQuery();
+            String allGrades = "";
+            while (rset.next()) {
+                String row = rset.getString("grade");
+                if (row != null) {
+                    allGrades += row + "";
+                }
+            }
+
+            for (int i = 0; i < allGrades.length(); i++) {
+                char currentGrade = allGrades.charAt(i);
+                if (!data.containsKey(currentGrade)) {
+                    data.put(currentGrade, 1);
+                } else {
+                    int oldFrequency = data.get(currentGrade);
+                    data.replace(currentGrade, oldFrequency + 1);
+                }
+            }
+
+        } catch (Exception e) {
+            System.out.println(e.getMessage());
+            e.printStackTrace();
+        }
+
+        Iterator dataIterator = data.entrySet().iterator();
+        while (dataIterator.hasNext()) {
+            Map.Entry mapElement = (Map.Entry) dataIterator.next();
+            int marks = ((int) mapElement.getValue());
+            System.out.println(mapElement.getKey() + " : " + marks);
+        }
+        return data;
+    }
+
+    public static void clearPreviousTables() {
+        try {
+            if (connection != null){
+                PreparedStatement statement1 = connection.prepareStatement("DROP TABLE Students");
+                PreparedStatement statement2 = connection.prepareStatement("DROP TABLE Courses");
+                PreparedStatement statement3 = connection.prepareStatement("DROP TABLE Classes");
+                statement3.execute();
+                statement2.execute();
+                statement1.execute();
+            }
+        } catch (Exception e) {
+            System.out.println(e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    public static void showTables(){
+        Database.showValues(connection);
+    }
+
+    public static void showValues(Connection conn){
+        try {
+            PreparedStatement statement1 = conn.prepareStatement("SELECT * FROM Students");
+            ResultSet resultset1 = statement1.executeQuery();
+            Database.showResults("Students", resultset1);
+
+            PreparedStatement statement2 = conn.prepareStatement("SELECT * FROM Courses");
+            ResultSet resultset2 = statement2.executeQuery();
+            Database.showResults("Courses", resultset2);
+
+            PreparedStatement statement3 = conn.prepareStatement("SELECT * FROM Classes");
+            ResultSet resultset3 = statement3.executeQuery();
+            Database.showResults("Students", resultset3);
+        } catch (Exception e) {
+            System.out.println(e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    public static void showResults(String tableName, ResultSet rset){
+        try {
+            ResultSetMetaData rsmd = rset.getMetaData();
+            int numCols = rsmd.getColumnCount();
+            String resultString = "";
+            if (numCols > 0){
+                resultString = "\n Table: " + tableName + "\n" +
+                        "===========================================================\n";
+                for(int colNum = 1; colNum < numCols; colNum++){
+                    resultString += rsmd.getColumnLabel(colNum) + " ";
+                }
+            }
+
+            System.out.println(resultString);
+            System.out.println("===========================================================\n");
+
+            while (rset.next()){
+                resultString = "";
+                for (int colNum = 1; colNum <= numCols; colNum++){
+                    String column = rset.getString(colNum);
+                    if (column != null){
+                        resultString += column + " ";
+                    }
+                }
+                System.out.println(resultString+ "\n" +
+                        "--------------------------------------------------------------");
+            }
+        } catch (Exception e) {
+            System.out.println(e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    public static void closeDatabase() {
+        try {
+            if (connection != null){
+                connection.close();
+            }
+        } catch (Exception e) {
+            System.out.println(e.getMessage());
+            e.printStackTrace();
+        }
+    }
+}
+
+
+

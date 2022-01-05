@@ -1,0 +1,79 @@
+package sample;
+
+import javafx.application.Application;
+import javafx.scene.Scene;
+import javafx.scene.canvas.Canvas;
+import javafx.scene.canvas.GraphicsContext;
+import javafx.scene.layout.StackPane;
+import javafx.stage.Stage;
+
+import java.sql.SQLException;
+
+public class Main extends Application {
+    // Set up window
+    final int WIDTH = 1200;
+    final int HEIGHT = 800;
+
+    String[] tableNames = {"Classes", "Courses", "Students"};
+
+    @Override
+    public void start(Stage primaryStage) throws ClassNotFoundException {
+        try {
+            primaryStage.setTitle("Assignment 4 - Steven Granaturov");
+            Canvas canvas = new Canvas(WIDTH, HEIGHT);
+            StackPane sp = new StackPane(canvas);
+            GraphicsContext gc = canvas.getGraphicsContext2D();
+            Scene scene = new Scene(sp, WIDTH, HEIGHT);
+
+            PieChart pc = new PieChart();
+
+            Database.connectToDatabase();
+            Database.clearPreviousTables();
+            Database.createTables();
+
+            Database.insertIntoStudents(23756046, "Steven", "Granaturov", "sg@gmail.com", 'M');
+            Database.insertIntoStudents(23756047, "John", "Doe", "jd@gmail.com", 'M');
+            Database.insertIntoStudents(23756048, "Adam", "Smith", "as@gmail.com", 'M');
+            Database.insertIntoStudents(23756049, "Hesham", "Auda", "ha@gmail.com", 'M');
+            Database.insertIntoStudents(23756050, "William", "Skeith", "ws@gmail.com", 'M');
+            Database.insertIntoStudents(23756051, "Adam", "Bubrow", "ab@gmail.com", 'M');
+            Database.insertIntoStudents(23756052, "Nihal", "Vatandas", "nv@gmail.com", 'M');
+            Database.insertIntoStudents(23756053, "Zheng", "Peng", "zp@gmail.com", 'M');
+            Database.insertIntoStudents(23756054, "Elahe", "Vahdini", "ev@gmail.com", 'M');
+
+            Database.insertIntoCourses("CSC 22100", "Software Design Laboratory" , "Computer Science");
+
+            Database.insertIntoClasses("CSC 22100", 23756046, "P", 2021, "Spring", 'A');
+            Database.insertIntoClasses("CSC 22100", 23756047, "P", 2021, "Spring", 'B');
+            Database.insertIntoClasses("CSC 22100", 23756048, "P", 2021, "Spring", 'C');
+            Database.insertIntoClasses("CSC 22100", 23756049, "P", 2021, "Spring", 'A');
+            Database.insertIntoClasses("CSC 22100", 23756050, "P", 2021, "Spring", 'F');
+            Database.insertIntoClasses("CSC 22100", 23756051, "P", 2021, "Spring", 'C');
+            Database.insertIntoClasses("CSC 22100", 23756052, "P", 2021, "Spring", 'B');
+
+            Database.showTables();
+            Database.tableEnrolledInCSC22100();
+
+            pc.draw(gc);
+            Database.closeDatabase();
+
+            primaryStage.setScene(scene);
+            primaryStage.show();
+
+            //Class.forName("com.mysql.cj.jdbc.Driver");
+            String username = "postgres";
+            String password = "0837";
+            String url = "jdbc:postgresql://localhost:5432/CSC221 Database";
+            //Database d = new Database(url, username, password);
+        } catch (Exception e){
+            System.out.println(e.getMessage());
+            e.printStackTrace();
+
+        }
+    }
+
+    public static void Main(String[] args){
+        launch(args);
+
+    }
+}
